@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dymaxion Map</title>
+  <style>
+    .no-select {
+      -webkit-touch-callout: none; /* iOS Safari */
+        -webkit-user-select: none; /* Safari */
+         -khtml-user-select: none; /* Konqueror HTML */
+           -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* Internet Explorer/Edge */
+                user-select: none; /* Non-prefixed version, currently
+                                      supported by Chrome and Opera */
+    }
+    .eqr-map {
+      position: relative;
+    }
+    .eqr-box {
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      width: 1024px;
+      height: 512px;
+    }
+    #eqr_angles {
+      font-family: monospace;
+      margin-bottom: 7px;
+    }
+    #eqr_image {
+    }
+    #eqr_canvas {
+    }
+  </style>
+  <script
+    src="https://code.jquery.com/jquery-3.4.1.min.js"
+    integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+    crossorigin="anonymous"></script>
+</head>
+
+<body>
+  <div id="eqr_angles">-</div>
+  <div class="eqr-map no-select">
+    <img
+      id="eqr_image"
+      class="eqr-box"
+      src="eqr_world_1.png"
+    />
+    <canvas
+      id="eqr_canvas"
+      class="eqr-box"
+      width="1024"
+      height="512"
+    ></canvas>
+  </div>
+
+
+  <script>
+
+    function wrapAngle(angle) {
+      if (angle > Math.PI) {
+        return angle - 2 * Math.PI;
+      }
+      if (angle < -Math.PI) {
+        return angle + 2 * Math.PI;
+      }
+      return angle;
+    }
+
+    function cart(p) {
+      var r = p[0];
+      var az = p[1];
+      var el = p[2];
+      var rCosEl = r * Math.cos(el);
+      return [
+        rCosEl * Math.cos(az),
+        rCosEl * Math.sin(az),
+        r * Math.sin(el)
+      ];
+    }
+
+    function polar(p) {
+      var x = p[0];
+      var y = p[1];
+      var z = p[2];
+      var hxy = Math.hypot(x, y);
+      return [
+        Math.hypot(hxy, z),
+        Math.atan2(y, x),
+        Math.atan2(z, hxy)
+      ];
+    }
+
+    function rotate2d(point, angle) {
+      var x = point[0];
+      var y = point[1];
+      var cos = Math.cos(angle);
+      var sin = Math.sin(angle);
+      return [
+          x * cos - y * sin,
+          x * sin + y * cos
+      ];
+    }
+
+    function rotate3d(point, zAngle, yAngle, xAngle) {
+      var p2 = rotate2d(
+        [point[0], point[1]],
+        zAngle);
+      point = [p2[0], p2[1], point[2]];
+
+      var p3 = rotate2d(
+        [point[0], point[2]],
+        yAngle);
+      point = [p3[0], point[1], p3[1]];
+
+      var p4 = rotate2d(
+        [point[1], point[2]],
+        xAngle);
+      point = [point[0], p4[0], p4[1]];
+
+      return point;
+    }
+
+    function getVertices() {
+      var vertices = [];
+      var angle = Math.atan(0.5);
+      var dAz = 2 * Math.PI / 10;
+      vertices.push(cart([1, 0, Math.PI / 2]));
+      for (var k = 0; k < 5; k++) {
+        vertices.push(cart([1, 2 * dAz * k, angle]));
+        vertices.push(cart([1, dAz + 2 * dAz * k, -angle]));
+      }
+      vertices.push(cart([1, 0, -Math.PI / 2]));
+      return vertices;
+    }
+
+    function getEdges() {
+      return [
+        [1, 3], [10, 11], [5, 6], [0, 7], [8, 9],
+        [0, 3], [1, 2], [6, 7], [8, 10], [3, 4],
+        [1, 10], [4, 5], [6, 11], [8, 11], [2, 10],
+        [9, 10], [0, 5], [1, 9], [2, 3], [4, 11],
+        [7, 9], [0, 1], [3, 5], [4, 6], [6, 8],
+        [5, 7], [2, 11], [0, 9], [7, 8], [2, 4]
+      ];
+    }
+
+    // Get points along edges, in nested arrays by edge
+    function getEdgePoints(vertices, edges, divideCount) {
+      var result = [];
+      var N = divideCount;
+      for (var i = 0; i < edges.length; i++) {
+        var edgePoints = [];
+        var edge = edges[i];
+        var p0 = vertices[edge[0]];
+        var p1 = vertices[edge[1]];
+        var dd = [
+          p1[0] - p0[0],
+          p1[1] - p0[1],
+          p1[2] - p0[2]
+        ];
+        for (var k = 0; k <= N; k++) {
+          var p = [
+            p0[0] + k * dd[0] / N,
+            p0[1] + k * dd[1] / N,
+            p0[2] + k * dd[2] / N
+          ];
+          edgePoints.push(p);
+        }
+        result.push(edgePoints);
+      }
+      return result;
+    }
+
+    var canvasWidth = 1024;
+    var canvasHeight = 512;
+    var canvasWidth2 = canvasWidth / 2;
+    var canvasHeight2 = canvasHeight / 2;
+    var canvasPxAz = canvasWidth / (2 * Math.PI);
+    var canvasPxEl = canvasHeight / Math.PI;
+
+    function getCanvasPos(azEl) {
+      var az = azEl[0];
+      var el = azEl[1];
+      var x = canvasWidth2 + az * canvasPxAz;
+      var y = canvasHeight2 - el * canvasPxEl;
+      return [x, y];
+    }
+
+    function moveTo(ctx, azEl) {
+      p = getCanvasPos(azEl);
+      ctx.moveTo(p[0], p[1]);
+    }
+
+    function lineTo(ctx, azEl) {
+      p = getCanvasPos(azEl);
+      ctx.lineTo(p[0], p[1]);
+    }
+
+    function drawLine(ctx, p0, p1) {
+      // If the line wraps between -pi and pi,
+      // draw two lines so that it looks correct
+      // TO DO: With small line segments, perhaps
+      // don't draw at all?
+      
+      // Don't draw lines that end at the poles
+      if (
+        (Math.abs(Math.abs(p0[1]) - Math.PI / 2) < 0.05) ||
+        (Math.abs(Math.abs(p1[1]) - Math.PI / 2) < 0.05)
+      ) {
+        return;
+      }
+
+      // Handle lines that wrap between -pi and pi
+      // in az axis
+      if ((Math.abs(p1[0] - p0[0])) > Math.PI) {
+        var sign = (p1[0] < p0[0]) ? 1 : -1;
+        moveTo(ctx, p0);
+        lineTo(ctx, [p1[0] + sign * 2 * Math.PI, p1[1]]);
+        moveTo(ctx, [p0[0] - sign * 2 * Math.PI, p0[1]]);
+        lineTo(ctx, p1);
+      }
+      else {
+        moveTo(ctx, p0);
+        lineTo(ctx, p1);
+      }
+    }
+
+    function drawVertex(ctx, azEl) {
+      p = getCanvasPos(azEl);
+      ctx.moveTo(p[0], p[1]);
+      ctx.arc(p[0], p[1], 5, 0, 2 * Math.PI);
+    }
+
+    function drawAzElLines(ctx) {
+      var azCount = 18;
+      var elCount = 10;
+      for (var i = 0; i < azCount; i++) {
+        var az = -Math.PI + 2 * Math.PI / azCount * i;
+        moveTo(ctx, [az, -Math.PI / 2]);
+        lineTo(ctx, [az, Math.PI / 2]);
+      }
+      for (var j = 0; j < elCount; j++) {
+        var el = -Math.PI / 2 + Math.PI / elCount * j;
+        moveTo(ctx, [-Math.PI, el]);
+        lineTo(ctx, [Math.PI, el]);
+      }
+    }
+
+    function draw(ctx, edgePointsOuter, zAngle, yAngle, xAngle) {
+      // Get az-el edge points
+      var polarEdgePointsOuter = [];
+      for (var j = 0; j < edgePointsOuter.length; j++) {
+        var edgePoints = edgePointsOuter[j];
+        var polarEdgePoints = [];
+        for (var i = 0; i < edgePoints.length; i++) {
+          var polarEdgePoint = polar(rotate3d(
+            edgePoints[i], zAngle, yAngle, xAngle));
+          polarEdgePoints.push([polarEdgePoint[1], polarEdgePoint[2]]);
+        }
+        polarEdgePointsOuter.push(polarEdgePoints);
+      }
+
+      // Draw edge points
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+      ctx.beginPath();
+
+      for (var j = 0; j < polarEdgePointsOuter.length; j++) {
+        var polarEdgePoints = polarEdgePointsOuter[j];
+        for (var i = 0; i < polarEdgePoints.length; i++) {
+          // drawVertex(ctx, polarEdgePoints[i]);
+          if (i > 0) {
+            drawLine(ctx, polarEdgePoints[i - 1], polarEdgePoints[i]);
+          }
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    var zAngle = 0;
+    var yAngle = 0;  // -0.8 * Math.PI;
+    var xAngle = 0;
+
+    function updateUi() {
+      $('#eqr_angles').text(
+        'xAngle = ' + xAngle.toFixed(4) + ' ' +
+        'yAngle = ' + yAngle.toFixed(4) + ' ' +
+        'zAngle = ' + zAngle.toFixed(4));
+    }
+
+    function main() {
+      var canvasEl = $('#eqr_canvas');
+      var ctx = canvasEl.get(0).getContext('2d');
+
+      // Get icosahedron vertices
+      var vertices = getVertices();
+      var edges = getEdges();
+      var edgePointsOuter = getEdgePoints(vertices, edges, 20);
+
+      // Change angles when dragging the equirectangular
+      // map.
+      var DRAG_WEIGHT = 0.001;
+      canvasEl.on('mousedown', function(e) {
+        var prevPageX = e.pageX;
+        var prevPageY = e.pageY;
+        canvasEl.on('mouseup mouseout', function(e) {
+          // Stop movement
+          canvasEl.off('mouseup mouseout mousemove');
+        });
+        canvasEl.on('mousemove', function(e) {
+          // Calculate movement
+          var dPageX = e.pageX - prevPageX;
+          var dPageY = e.pageY - prevPageY;
+
+          zAngle = wrapAngle(zAngle + dPageX * DRAG_WEIGHT);
+          if (e.shiftKey) {
+            xAngle = wrapAngle(xAngle + dPageY * DRAG_WEIGHT);
+          }
+          else {
+            yAngle = wrapAngle(yAngle + dPageY * DRAG_WEIGHT);
+          }
+
+          prevPageX = e.pageX;
+          prevPageY = e.pageY;
+
+          updateUi();
+        });
+      });
+
+      function drawFrame() {
+        draw(ctx, edgePointsOuter, zAngle, yAngle, xAngle);
+        // yAngle = wrapAngle(yAngle + 0.003);
+        // zAngle = wrapAngle(zAngle + 0.002);
+        // xAngle = wrapAngle(xAngle + 0.001);
+        window.requestAnimationFrame(drawFrame);
+      }
+      window.requestAnimationFrame(drawFrame);
+      
+      updateUi();
+    }
+
+    $(document).ready(function() {
+      main();
+    });
+
+    // Notes:
+    // https://stackoverflow.com/questions/35274934/retrieve-image-data-from-file-input-without-a-server
+
+  </script>
+</body>
+
+</html>
