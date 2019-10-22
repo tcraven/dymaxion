@@ -64,6 +64,10 @@
     #dym_update {
       margin-left: 10px;
     }
+
+    #tjc_container canvas {
+      border: solid 1px #000;
+    }
   </style>
   <script
     src="https://code.jquery.com/jquery-3.4.1.min.js"
@@ -72,6 +76,9 @@
 </head>
 
 <body>
+
+  <div id="tjc_container"></div>
+
   <div id="eqr_info">
     <span>Equirectangular Projection</span>
     <span id="eqr_angles">
@@ -80,19 +87,18 @@
     <img
       id="eqr_image"
       class="eqr-box eqr-image"
-      src="eqr_world_2.png"
     />
     <canvas
       id="eqr_image_canvas"
       class="eqr-box"
-      width="1024"
-      height="512"
+      width="2048"
+      height="1024"
     ></canvas>
     <canvas
       id="eqr_canvas"
       class="eqr-box"
-      width="1024"
-      height="512"
+      width="2048"
+      height="1024"
     ></canvas>
   </div>
 
@@ -104,21 +110,33 @@
     <canvas
       id="dym_canvas"
       class="dym-box"
-      width="1024"
-      height="512"
+      width="2048"
+      height="1024"
     ></canvas>
   </div>
 
   <script src="utils.js"></script>
   <script src="icosahedron.js"></script>
   <script src="subfaces.js"></script>
+  <script src="dymaxion.js"></script>
+  <script src="drawing.js"></script>
   <script>
-    var canvasWidth = 1024;
-    var canvasHeight = 512;
+    var canvasWidth = 2048;  // 1024;
+    var canvasHeight = 1024;  // 512;
     var canvasWidth2 = canvasWidth / 2;
     var canvasHeight2 = canvasHeight / 2;
     var canvasPxAz = canvasWidth / (2 * Math.PI);
     var canvasPxEl = canvasHeight / Math.PI;
+    var dymPreviewDivisionCount = 4;
+    // Close up settings
+    var dymScale = canvasHeight * 1;
+    var dymDivisionCount = 10;
+    // All faces settings
+    // var dymScale = canvasHeight * 0.258;
+    // var dymDivisionCount = 8;
+
+    var eqrImageSrc = 'eqr_world_1.png';
+    // var eqrImageSrc = 'p2.jpg';
 
     function getCanvasPos(azEl) {
       var az = azEl[0];
@@ -215,6 +233,7 @@
           }
         }
       }
+      ctx.lineWidth = 2;
       ctx.strokeStyle = 'rgb(0,0,0)';
       ctx.stroke();
     }
@@ -231,16 +250,18 @@
     }
 
     function X(v, i) {
-      return 20 + 130 * (v[0] + 0.5 * v[1] + 1.1 * (i % 7));
+      return 20 + dymScale * (v[0] + 0.5 * v[1] + 1.1 * (i % 7));
     }
 
     function Y(v, i) {
-      return 150 - 130 * (v[1] * 0.866 - 1.1 * parseInt(i / 7));
+      return dymScale * (1 - (v[1] * 0.866 - 1.1 * parseInt(i / 7)));
     }
 
-    function drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData, eqrImageCtx, divisionCount) {
+    function drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData, eqrImageData, divisionCount) {
       // Draw subvertices
-      var eqrImageData = eqrImageCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+      if (!eqrImageData) {
+        return;
+      }
       dymCtx.clearRect(0, 0, canvasWidth, canvasHeight);
       var faces = Icosahedron.getFaces();
       var subvertices = subfaceData.subvertices;
@@ -255,11 +276,6 @@
           var azElPos = [polarPos[1], polarPos[2]];
 
           var canvasPos = getCanvasPos(azElPos);
-
-          // var rgb = eqrImageCtx.getImageData(
-          //   parseInt(canvasPos[0]),
-          //   parseInt(canvasPos[1]), 1, 1).data;
-
           var ix = parseInt(canvasPos[0]);
           var iy = parseInt(canvasPos[1]);
           var pIndex = iy * canvasWidth * 4 + ix * 4;
@@ -287,7 +303,10 @@
             parseInt((subvertexColors[i0][2] + subvertexColors[i1][2] + subvertexColors[i2][2]) / 3)
           ];
           var rgbStr = rgb.join(',');
-          dymCtx.strokeStyle = 'rgba(' + rgbStr + ',0.5)';
+          
+          dymCtx.lineWidth = 1;
+          // dymCtx.strokeStyle = 'rgba(' + rgbStr + ',0.5)';
+          dymCtx.strokeStyle = 'rgb(' + rgbStr + ')';
           dymCtx.fillStyle = 'rgb(' + rgbStr + ')';
 
           dymCtx.beginPath();
@@ -298,20 +317,37 @@
           dymCtx.fill();
           dymCtx.stroke();
         }
-
-
-        // dymCtx.beginPath();
-        // dymCtx.strokeStyle = strokeStyle;
-        // drawVertex(dymCtx, [
-        //   0.65 * (localPos[0] + 1.3 * (i % 7)) - 3,
-        //   0.65 * (localPos[1] - 1.5 * parseInt(i / 7)) + 0.8
-        // ]);
-        // dymCtx.stroke();
-
       }
     }
 
     function main() {
+
+      var tiles = Dymaxion.getTiles();
+      console.log(tiles);
+
+      var drawing = new Drawing({
+        parentEl: $('#tjc_container'),
+        width: 1024,
+        height: 512,
+        p0: [0, 0],
+        scale: 250
+      });
+
+      for (var i = 0; i < tiles.length; i++) {
+        var tile = tiles[i];
+        drawing.drawTriangle({
+          v0: tile.vv[0],
+          v1: tile.vv[1],
+          v2: tile.vv[2],
+          lineWidth: 1,
+          fillStyle: '#fff',
+          strokeStyle: '#000'
+        });
+      }
+
+
+      return;
+
       var canvasEl = $('#eqr_canvas');
       var ctx = canvasEl.get(0).getContext('2d');
 
@@ -319,9 +355,11 @@
       var vertices = Icosahedron.getVertices();
       var edges = Icosahedron.getEdges();
       var edgePointsOuter = Icosahedron.getEdgePoints(vertices, edges, 20);
-      var subfaceData = Subfaces.createSubfaceData({ divisionCount: 8 });
-
+      var subfaceData = Subfaces.createSubfaceData({ divisionCount: dymDivisionCount });
+      var dymCtx = $('#dym_canvas').get(0).getContext('2d');      
+      var eqrImageData = null;
       var isDymaxionPreviewEnabled = true;
+
       // Change angles when dragging the equirectangular
       // map.
       var DRAG_WEIGHT = 0.001;
@@ -353,25 +391,32 @@
         });
       });
 
-      var dymCtx = $('#dym_canvas').get(0).getContext('2d');
-      var eqrImageCtx = $('#eqr_image_canvas').get(0).getContext('2d');
-      eqrImageCtx.drawImage($('#eqr_image').get(0), 0, 0, canvasWidth, canvasHeight);
-
-      $('#dym_update').click(function() {
-        isDymaxionPreviewEnabled = false;
-        drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData, eqrImageCtx, 8);
-      });
-
       function drawFrame() {
-        draw(ctx, edgePointsOuter, zAngle, yAngle, xAngle);
         if (isDymaxionPreviewEnabled) {
-          drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData, eqrImageCtx, 4);
+          draw(ctx, edgePointsOuter, zAngle, yAngle, xAngle);
+          drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData,
+            eqrImageData, dymPreviewDivisionCount);
+          isDymaxionPreviewEnabled = false;
         }
         window.requestAnimationFrame(drawFrame);
       }
-      window.requestAnimationFrame(drawFrame);
-      
-      updateUi();
+
+      $('#eqr_image').on('load', function() {
+        var eqrImageCtx = $('#eqr_image_canvas').get(0).getContext('2d');
+        eqrImageCtx.drawImage($('#eqr_image').get(0), 0, 0, canvasWidth, canvasHeight);
+        eqrImageData = eqrImageCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+        // Start drawing
+        window.requestAnimationFrame(drawFrame);
+        updateUi();
+      });
+      $('#eqr_image').attr('src', eqrImageSrc);
+
+      $('#dym_update').click(function() {
+        isDymaxionPreviewEnabled = false;
+        drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData,
+          eqrImageData, dymDivisionCount);
+      });
+
     }
 
     $(document).ready(function() {
@@ -382,13 +427,9 @@
     // https://stackoverflow.com/questions/35274934/retrieve-image-data-from-file-input-without-a-server
 
     // TO DO:
-    // - Split into separate files
     // - Common drawing utility functions
     //    - Transformation onto canvas
     //    - Line, vertex, polygon, etc
-    // - Dymaxion draw face zero
-    //    - Colors from eqr map image
-    //    - Draw with lots of subfaces
 
   </script>
 </body>
