@@ -32,6 +32,14 @@ function polar(p) {
   ];
 }
 
+function polarAzEl(p) {
+  var pp = polar(p);
+  return [
+    pp[1],
+    pp[2]
+  ];
+}
+
 function rotate2d(point, angle) {
   var x = point[0];
   var y = point[1];
@@ -60,4 +68,12 @@ function rotate3d(point, zAngle, yAngle, xAngle) {
   point = [point[0], p4[0], p4[1]];
 
   return point;
+}
+
+function loadImage(url, callback) {
+  var image = new Image();
+  image.onload = function() {
+    callback(image);
+  }
+  image.src = url;
 }

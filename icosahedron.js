@@ -135,12 +135,23 @@ var Icosahedron = {
     return Icosahedron.vertices;
   },
 
+  getVerticesRotated: function(angles) {
+    var vertices = Icosahedron.getVertices();
+    var rotatedVertices = [];
+    for (var i = 0; i < vertices.length; i++) {
+      rotatedVertices.push(
+        rotate3d(vertices[i], angles[0], angles[1], angles[2]));
+    }
+    return rotatedVertices;
+  },
+
   getEdges: function() {
     return Icosahedron.edges;
   },
 
   // Get points along edges, in nested arrays by edge
-  getEdgePoints: function(vertices, edges, divideCount) {
+  getEdgePoints: function(vertices, divideCount) {
+    var edges = Icosahedron.edges;
     var result = [];
     var N = divideCount;
     for (var i = 0; i < edges.length; i++) {
@@ -174,8 +185,7 @@ var Icosahedron = {
 
   // Translates local face position (s, t) into
   // cartesian position (x, y, z)
-  getFacePos: function(faceIndex, localPos) {
-    var vertices = Icosahedron.getVertices();
+  getFacePos: function(vertices, faceIndex, localPos) {
     var face = Icosahedron.faces[faceIndex];
     var v0 = vertices[face[0]];
     var v1 = vertices[face[1]];

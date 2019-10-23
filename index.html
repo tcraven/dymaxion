@@ -7,65 +7,21 @@
     body {
       font-family: sans-serif;
     }
-    .no-select {
-      -webkit-touch-callout: none; /* iOS Safari */
-        -webkit-user-select: none; /* Safari */
-         -khtml-user-select: none; /* Konqueror HTML */
-           -moz-user-select: none; /* Firefox */
-            -ms-user-select: none; /* Internet Explorer/Edge */
-                user-select: none; /* Non-prefixed version, currently
-                                      supported by Chrome and Opera */
-    }
-    .eqr-map {
+    #eqrContainer {
       position: relative;
-      width: 1024px;
-      height: 512px;
-      border: solid 1px #ccc;
     }
-    .eqr-box {
+    #eqrOverlayContainer {
       position: absolute;
       top: 0px;
       left: 0px;
-      width: 1024px;
-      height: 512px;
     }
-    .eqr-image {
-      visibility: hidden;
+    #eqrImageContainer canvas {
+      border: solid 1px #000;
     }
-    #eqr_info {
-      margin-bottom: 7px;
+    #eqrOverlayContainer canvas {
+      border: solid 1px #000;
     }
-    #eqr_angles {
-      margin-left: 20px;
-      font-family: monospace;
-    }
-    #eqr_image {
-    }
-    #eqr_canvas {
-    }
-
-    #dym_info {
-      margin-top: 7px;
-      margin-bottom: 7px;
-    }
-    .dym-map {
-      position: relative;
-      width: 1024px;
-      height: 512px;
-      border: solid 1px #ccc;
-    }
-    .dym-box {
-      position: absolute;
-      top: 0px;
-      left: 0px;
-      width: 1024px;
-      height: 512px;
-    }
-    #dym_update {
-      margin-left: 10px;
-    }
-
-    #tjc_container canvas {
+    #dymContainer canvas {
       border: solid 1px #000;
     }
   </style>
@@ -77,344 +33,78 @@
 
 <body>
 
-  <div id="tjc_container"></div>
-
-  <div id="eqr_info">
-    <span>Equirectangular Projection</span>
-    <span id="eqr_angles">
+  <div id="eqrContainer">
+    <div id="eqrImageContainer"></div>
+    <div id="eqrOverlayContainer"></div>
   </div>
-  <div class="eqr-map no-select">
-    <img
-      id="eqr_image"
-      class="eqr-box eqr-image"
-    />
-    <canvas
-      id="eqr_image_canvas"
-      class="eqr-box"
-      width="2048"
-      height="1024"
-    ></canvas>
-    <canvas
-      id="eqr_canvas"
-      class="eqr-box"
-      width="2048"
-      height="1024"
-    ></canvas>
-  </div>
-
-  <div id="dym_info">
-    <span>Dymaxion Projection</span>
-    <button id="dym_update">Update</button>
-  </div>
-  <div class="dym-map no-select">
-    <canvas
-      id="dym_canvas"
-      class="dym-box"
-      width="2048"
-      height="1024"
-    ></canvas>
-  </div>
+  <div id="dymContainer"></div>
 
   <script src="utils.js"></script>
+  <script src="drawing.js"></script>
   <script src="icosahedron.js"></script>
   <script src="subfaces.js"></script>
+  <script src="equirectangular.js"></script>
   <script src="dymaxion.js"></script>
-  <script src="drawing.js"></script>
   <script>
-    var canvasWidth = 2048;  // 1024;
-    var canvasHeight = 1024;  // 512;
-    var canvasWidth2 = canvasWidth / 2;
-    var canvasHeight2 = canvasHeight / 2;
-    var canvasPxAz = canvasWidth / (2 * Math.PI);
-    var canvasPxEl = canvasHeight / Math.PI;
-    var dymPreviewDivisionCount = 4;
-    // Close up settings
-    var dymScale = canvasHeight * 1;
-    var dymDivisionCount = 10;
-    // All faces settings
-    // var dymScale = canvasHeight * 0.258;
-    // var dymDivisionCount = 8;
-
-    var eqrImageSrc = 'eqr_world_1.png';
-    // var eqrImageSrc = 'p2.jpg';
-
-    function getCanvasPos(azEl) {
-      var az = azEl[0];
-      var el = azEl[1];
-      var x = canvasWidth2 + az * canvasPxAz;
-      var y = canvasHeight2 - el * canvasPxEl;
-      return [x, y];
-    }
-
-    function moveTo(ctx, azEl) {
-      p = getCanvasPos(azEl);
-      ctx.moveTo(p[0], p[1]);
-    }
-
-    function lineTo(ctx, azEl) {
-      p = getCanvasPos(azEl);
-      ctx.lineTo(p[0], p[1]);
-    }
-
-    function drawLine(ctx, p0, p1) {
-      // If the line wraps between -pi and pi,
-      // draw two lines so that it looks correct
-      // TO DO: With small line segments, perhaps
-      // don't draw at all?
-      
-      // Don't draw lines that end at the poles
-      if (
-        (Math.abs(Math.abs(p0[1]) - Math.PI / 2) < 0.05) ||
-        (Math.abs(Math.abs(p1[1]) - Math.PI / 2) < 0.05)
-      ) {
-        return;
-      }
-
-      // Handle lines that wrap between -pi and pi
-      // in az axis
-      if ((Math.abs(p1[0] - p0[0])) > Math.PI) {
-        var sign = (p1[0] < p0[0]) ? 1 : -1;
-        moveTo(ctx, p0);
-        lineTo(ctx, [p1[0] + sign * 2 * Math.PI, p1[1]]);
-        moveTo(ctx, [p0[0] - sign * 2 * Math.PI, p0[1]]);
-        lineTo(ctx, p1);
-      }
-      else {
-        moveTo(ctx, p0);
-        lineTo(ctx, p1);
-      }
-    }
-
-    function drawVertex(ctx, azEl) {
-      var p = getCanvasPos(azEl);
-      ctx.moveTo(p[0], p[1]);
-      ctx.arc(p[0], p[1], 5, 0, 2 * Math.PI);
-    }
-
-    function drawAzElLines(ctx) {
-      var azCount = 18;
-      var elCount = 10;
-      for (var i = 0; i < azCount; i++) {
-        var az = -Math.PI + 2 * Math.PI / azCount * i;
-        moveTo(ctx, [az, -Math.PI / 2]);
-        lineTo(ctx, [az, Math.PI / 2]);
-      }
-      for (var j = 0; j < elCount; j++) {
-        var el = -Math.PI / 2 + Math.PI / elCount * j;
-        moveTo(ctx, [-Math.PI, el]);
-        lineTo(ctx, [Math.PI, el]);
-      }
-    }
-
-    function draw(ctx, edgePointsOuter, zAngle, yAngle, xAngle) {
-      // Get az-el edge points
-      var polarEdgePointsOuter = [];
-      for (var j = 0; j < edgePointsOuter.length; j++) {
-        var edgePoints = edgePointsOuter[j];
-        var polarEdgePoints = [];
-        for (var i = 0; i < edgePoints.length; i++) {
-          var polarEdgePoint = polar(rotate3d(
-            edgePoints[i], zAngle, yAngle, xAngle));
-          polarEdgePoints.push([polarEdgePoint[1], polarEdgePoint[2]]);
-        }
-        polarEdgePointsOuter.push(polarEdgePoints);
-      }
-
-      // Draw edge points
-      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-      ctx.beginPath();
-
-      for (var j = 0; j < polarEdgePointsOuter.length; j++) {
-        var polarEdgePoints = polarEdgePointsOuter[j];
-        for (var i = 0; i < polarEdgePoints.length; i++) {
-          // drawVertex(ctx, polarEdgePoints[i]);
-          if (i > 0) {
-            drawLine(ctx, polarEdgePoints[i - 1], polarEdgePoints[i]);
-          }
-        }
-      }
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgb(0,0,0)';
-      ctx.stroke();
-    }
-
-    var zAngle = 0;
-    var yAngle = 0;  // -0.8 * Math.PI;
-    var xAngle = 0;
-
-    function updateUi() {
-      $('#eqr_angles').text(
-        'xAngle = ' + xAngle.toFixed(4) + ' ' +
-        'yAngle = ' + yAngle.toFixed(4) + ' ' +
-        'zAngle = ' + zAngle.toFixed(4));
-    }
-
-    function X(v, i) {
-      return 20 + dymScale * (v[0] + 0.5 * v[1] + 1.1 * (i % 7));
-    }
-
-    function Y(v, i) {
-      return dymScale * (1 - (v[1] * 0.866 - 1.1 * parseInt(i / 7)));
-    }
-
-    function drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData, eqrImageData, divisionCount) {
-      // Draw subvertices
-      if (!eqrImageData) {
-        return;
-      }
-      dymCtx.clearRect(0, 0, canvasWidth, canvasHeight);
-      var faces = Icosahedron.getFaces();
-      var subvertices = subfaceData.subvertices;
-      var subvertexCount = subfaceData.vertexCountsByDivision[divisionCount - 1];
-      for (var i = 0; i < faces.length; i++) {
-        var subvertexColors = [];
-        for (var j = 0; j < subvertexCount; j++) {
-          var localPos = subvertices[j];
-          var pos = Icosahedron.getFacePos(i, localPos);
-          var polarPos = polar(rotate3d(
-            pos, zAngle, yAngle, xAngle));
-          var azElPos = [polarPos[1], polarPos[2]];
-
-          var canvasPos = getCanvasPos(azElPos);
-          var ix = parseInt(canvasPos[0]);
-          var iy = parseInt(canvasPos[1]);
-          var pIndex = iy * canvasWidth * 4 + ix * 4;
-          var rgb = [
-            eqrImageData.data[pIndex],
-            eqrImageData.data[pIndex + 1],
-            eqrImageData.data[pIndex + 2]
-          ];
-
-          subvertexColors.push(rgb);
-        }
-
-        // Draw the colored subfaces
-        var subfaces = subfaceData.subfacesByDivision[divisionCount - 1];
-        for (var j = 0; j < subfaces.length; j++) {
-          var i0 = subfaces[j][0];
-          var i1 = subfaces[j][1];
-          var i2 = subfaces[j][2];
-          var v0 = subvertices[i0];
-          var v1 = subvertices[i1];
-          var v2 = subvertices[i2];
-          var rgb = [
-            parseInt((subvertexColors[i0][0] + subvertexColors[i1][0] + subvertexColors[i2][0]) / 3),
-            parseInt((subvertexColors[i0][1] + subvertexColors[i1][1] + subvertexColors[i2][1]) / 3),
-            parseInt((subvertexColors[i0][2] + subvertexColors[i1][2] + subvertexColors[i2][2]) / 3)
-          ];
-          var rgbStr = rgb.join(',');
-          
-          dymCtx.lineWidth = 1;
-          // dymCtx.strokeStyle = 'rgba(' + rgbStr + ',0.5)';
-          dymCtx.strokeStyle = 'rgb(' + rgbStr + ')';
-          dymCtx.fillStyle = 'rgb(' + rgbStr + ')';
-
-          dymCtx.beginPath();
-          dymCtx.moveTo(X(v0, i), Y(v0, i));
-          dymCtx.lineTo(X(v1, i), Y(v1, i));
-          dymCtx.lineTo(X(v2, i), Y(v2, i));
-          dymCtx.lineTo(X(v0, i), Y(v0, i));
-          dymCtx.fill();
-          dymCtx.stroke();
-        }
-      }
-    }
 
     function main() {
 
-      var tiles = Dymaxion.getTiles();
-      console.log(tiles);
+      var eqrImageSrc = 'eqr_world_1.png';
+      var dymDivisionCount = 6;
+      // var angles = [-2, 0.4, 0.4]  // [zAngle, yAngle, xAngle]
+      var angles = [-2, 0.5, 0.5]  // [zAngle, yAngle, xAngle]
 
-      var drawing = new Drawing({
-        parentEl: $('#tjc_container'),
+      var eqrImageDrawing = new Drawing({
+        parentEl: $('#eqrImageContainer'),
         width: 1024,
         height: 512,
         p0: [0, 0],
-        scale: 250
+        scale: 2 * 1024 / (2 * Math.PI)
       });
 
-      for (var i = 0; i < tiles.length; i++) {
-        var tile = tiles[i];
-        drawing.drawTriangle({
-          v0: tile.vv[0],
-          v1: tile.vv[1],
-          v2: tile.vv[2],
-          lineWidth: 1,
-          fillStyle: '#fff',
-          strokeStyle: '#000'
-        });
-      }
-
-
-      return;
-
-      var canvasEl = $('#eqr_canvas');
-      var ctx = canvasEl.get(0).getContext('2d');
-
-      // Get icosahedron vertices
-      var vertices = Icosahedron.getVertices();
-      var edges = Icosahedron.getEdges();
-      var edgePointsOuter = Icosahedron.getEdgePoints(vertices, edges, 20);
-      var subfaceData = Subfaces.createSubfaceData({ divisionCount: dymDivisionCount });
-      var dymCtx = $('#dym_canvas').get(0).getContext('2d');      
-      var eqrImageData = null;
-      var isDymaxionPreviewEnabled = true;
-
-      // Change angles when dragging the equirectangular
-      // map.
-      var DRAG_WEIGHT = 0.001;
-      canvasEl.on('mousedown', function(e) {
-        var prevPageX = e.pageX;
-        var prevPageY = e.pageY;
-        canvasEl.on('mouseup mouseout', function(e) {
-          // Stop movement
-          canvasEl.off('mouseup mouseout mousemove');
-        });
-        canvasEl.on('mousemove', function(e) {
-          // Calculate movement
-          var dPageX = e.pageX - prevPageX;
-          var dPageY = e.pageY - prevPageY;
-
-          zAngle = wrapAngle(zAngle + dPageX * DRAG_WEIGHT);
-          if (e.shiftKey) {
-            xAngle = wrapAngle(xAngle + dPageY * DRAG_WEIGHT);
-          }
-          else {
-            yAngle = wrapAngle(yAngle + dPageY * DRAG_WEIGHT);
-          }
-
-          prevPageX = e.pageX;
-          prevPageY = e.pageY;
-
-          updateUi();
-          isDymaxionPreviewEnabled = true;
-        });
+      var eqrOverlayDrawing = new Drawing({
+        parentEl: $('#eqrOverlayContainer'),
+        width: 1024,
+        height: 512,
+        p0: [0, 0],
+        scale: 2 * 1024 / (2 * Math.PI)
       });
 
-      function drawFrame() {
-        if (isDymaxionPreviewEnabled) {
-          draw(ctx, edgePointsOuter, zAngle, yAngle, xAngle);
-          drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData,
-            eqrImageData, dymPreviewDivisionCount);
-          isDymaxionPreviewEnabled = false;
-        }
-        window.requestAnimationFrame(drawFrame);
-      }
-
-      $('#eqr_image').on('load', function() {
-        var eqrImageCtx = $('#eqr_image_canvas').get(0).getContext('2d');
-        eqrImageCtx.drawImage($('#eqr_image').get(0), 0, 0, canvasWidth, canvasHeight);
-        eqrImageData = eqrImageCtx.getImageData(0, 0, canvasWidth, canvasHeight);
-        // Start drawing
-        window.requestAnimationFrame(drawFrame);
-        updateUi();
+      var dymDrawing = new Drawing({
+        parentEl: $('#dymContainer'),
+        width: 1024,
+        height: 512,
+        p0: [-0.18, -0.4],
+        scale: 350
       });
-      $('#eqr_image').attr('src', eqrImageSrc);
 
-      $('#dym_update').click(function() {
-        isDymaxionPreviewEnabled = false;
-        drawDymaxion(dymCtx, zAngle, yAngle, xAngle, subfaceData,
-          eqrImageData, dymDivisionCount);
+      var subfaceData = Subfaces.createSubfaceData({
+        divisionCount: dymDivisionCount
+      });
+
+      // Load the equirectangular map image
+      loadImage(eqrImageSrc, function(eqrImageEl) {
+        
+        Equirectangular.drawMapImage({
+          drawing: eqrImageDrawing,
+          imageEl: eqrImageEl
+        });
+
+        var vertices = Icosahedron.getVerticesRotated(angles);
+
+        Equirectangular.drawOverlayMap({
+          drawing: eqrOverlayDrawing,
+          vertices: vertices
+        });
+
+        Dymaxion.drawMap({
+          drawing: dymDrawing,
+          subfaceData: subfaceData,
+          divisionCount: dymDivisionCount,
+          vertices: vertices,
+          eqrImageDrawing: eqrImageDrawing
+        });
+
       });
 
     }
@@ -422,14 +112,6 @@
     $(document).ready(function() {
       main();
     });
-
-    // Notes:
-    // https://stackoverflow.com/questions/35274934/retrieve-image-data-from-file-input-without-a-server
-
-    // TO DO:
-    // - Common drawing utility functions
-    //    - Transformation onto canvas
-    //    - Line, vertex, polygon, etc
 
   </script>
 </body>

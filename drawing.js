@@ -38,7 +38,7 @@ Drawing.prototype = {
     this.ctx.stroke();
   },
 
-  drawTriangle(options) {
+  drawTriangle: function(options) {
     // options: { v0, v1, v2, lineWidth, strokeStyle, fillStyle }
     this.beginPath();
     this.moveTo(options.v0);
@@ -48,8 +48,29 @@ Drawing.prototype = {
     this.drawPath(options);
   },
 
-  drawCircle(options) {
+  drawCircle: function(options) {
     // p, radius, lineWidth, strokeStyle fillStyle
+  },
+
+  drawImage: function(options) {
+    // imageEl
+    this.ctx.drawImage(
+      options.imageEl, 0, 0, this.canvasWidth, this.canvasHeight);
+
+    this.imageData = this.ctx.getImageData(
+      0, 0, this.canvasWidth, this.canvasHeight);
+  },
+
+  getColor: function(p) {
+    var cp = this._getCanvasPos(p);
+    var ix = parseInt(cp[0]);
+    var iy = parseInt(cp[1]);
+    var pIndex = iy * this.canvasWidth * 4 + ix * 4;
+    return [
+      this.imageData.data[pIndex],
+      this.imageData.data[pIndex + 1],
+      this.imageData.data[pIndex + 2]
+    ];
   },
 
   _getCanvasPos(p) {
@@ -85,6 +106,7 @@ Drawing.prototype = {
       .css('height', this.height + 'px');
     this.parentEl.append(this.canvasEl);
     this.ctx = this.canvasEl.get(0).getContext('2d');
+    this.imageData = null;
   }
 
 };
