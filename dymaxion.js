@@ -29,10 +29,11 @@ var Dymaxion = {
       // Left section
       { sourceTileIndex: 0, sourceEdgeIndex: 0 },     //  1
       { sourceTileIndex: 1, sourceEdgeIndex: 0 },     //  2
-      { sourceTileIndex: 2, sourceEdgeIndex: 0 },     //  3
+      { sourceTileIndex: 2, sourceEdgeIndex: 0 },  //  3
       { sourceTileIndex: 2, sourceEdgeIndex: 1 },     //  4
       { sourceTileIndex: 4, sourceEdgeIndex: 1 },     //  5
-      { sourceTileIndex: 5, sourceEdgeIndex: 0 },     //  6
+      { sourceTileIndex: 5, sourceEdgeIndex: 0,
+        cut: { type: 'third', side: 'left', vertexIndex: 0 } },  //  6 (third)
       { sourceTileIndex: 6, sourceEdgeIndex: 1 },     //  7
       { sourceTileIndex: 5, sourceEdgeIndex: 1 },     //  8
       { sourceTileIndex: 4, sourceEdgeIndex: 2 },     //  9
@@ -44,10 +45,16 @@ var Dymaxion = {
       { sourceTileIndex: 12, sourceEdgeIndex: 2 },    // 14
       { sourceTileIndex: 14, sourceEdgeIndex: 1 },    // 15
       { sourceTileIndex: 15, sourceEdgeIndex: 1 },    // 16
-      { sourceTileIndex: 15, sourceEdgeIndex: 2 },    // 17
+      { sourceTileIndex: 15, sourceEdgeIndex: 2,
+        cut: { type: 'half', side: 'right', vertexIndex: 1 } },  // 17 (half)
       // Bottom section
       { sourceTileIndex: 0, sourceEdgeIndex: 2 },     // 18
       { sourceTileIndex: 18, sourceEdgeIndex: 1 },    // 19
+      // Extra repeat tiles
+      { sourceTileIndex: 7, sourceEdgeIndex: 1,
+        cut: { type: 'half', side: 'left', vertexIndex: 1 } },   // 20 (half)
+      { sourceTileIndex: 3, sourceEdgeIndex: 1,
+        cut: { type: 'third', side: 'right', vertexIndex: 0 } },  // 20 (third)
     ];
 
     // Calculate tile positions
@@ -89,6 +96,52 @@ var Dymaxion = {
           ];
         }
       }
+
+      function getIndexList(k) {
+        return [(0 + k) % 3, (1 + k) % 3, (2 + k) % 3];
+      }
+
+      // For cut tiles, calculate vv2
+      if (tile.cut) {
+        var ii = getIndexList(tile.cut.vertexIndex);
+        var vvLeft = null;
+        var vvRight = null;
+
+        if (tile.cut.type == 'half') {
+          var v3 = [
+            tile.vv[ii[0]][0] + 0.5 * (tile.vv[ii[2]][0] - tile.vv[ii[0]][0]),
+            tile.vv[ii[0]][1] + 0.5 * (tile.vv[ii[2]][1] - tile.vv[ii[0]][1])
+          ];
+          vvLeft = [ tile.vv[ii[0]], tile.vv[ii[1]], v3 ];
+          vvRight = [ tile.vv[ii[1]], tile.vv[ii[2]], v3 ];
+        }
+        if (tile.cut.type == 'third') {
+          var SQRT36 = Math.sqrt(3) / 6;
+          var e = [
+            tile.vv[ii[1]][0] - tile.vv[ii[0]][0],
+            tile.vv[ii[1]][1] - tile.vv[ii[0]][1]
+          ];
+          var e90 = [ -e[1], e[0] ];
+          var v3 = [
+            tile.vv[ii[0]][0] + 0.5 * e[0] - SQRT36 * e90[0],
+            tile.vv[ii[0]][1] + 0.5 * e[1] - SQRT36 * e90[1]
+          ];
+          vvLeft = [ tile.vv[ii[0]], tile.vv[ii[1]], v3 ];
+          vvRight = [ tile.vv[ii[0]], v3, tile.vv[ii[1]], tile.vv[ii[2]] ];
+        }
+
+        if (tile.cut.side == 'left') {
+          tile.vvCut = vvLeft;
+          tile.vv2 = vvRight;
+        }
+        if (tile.cut.side == 'right') {
+          tile.vvCut = vvRight;
+          tile.vv2 = vvLeft;
+        }
+
+        console.log('Tile with cut:', tile);
+      }
+
     }
 
     return tiles;
@@ -119,82 +172,139 @@ var Dymaxion = {
     var divisionCount = options.divisionCount;
     var vertices = options.vertices;
     var eqrImageDrawing = options.eqrImageDrawing;
+    var drawIterationLimit = 10000;
+    var t0 = new Date().getTime();
+    var tP = t0;
+    var progressIntervalMs = 2000;
 
     var tiles = Dymaxion.getTiles();
     var subvertices = subfaceData.subvertices;
     var subvertexCount = subfaceData.vertexCountsByDivision[
       divisionCount - 1];
+    var subfaces = subfaceData.subfacesByDivision[
+      divisionCount - 1];
     
-    for (var i = 0; i < tiles.length; i++) {
-      var tile = tiles[i];
+    function drawTiles(i0, j0, iterationLimit) {
+      var t = new Date().getTime();
+      if (t - tP > progressIntervalMs) {
+        var subfaceProgress = (j0 + 1) / subfaces.length;
+        var progress = (i0 + subfaceProgress) / tiles.length;
+        var elapsedMs = t - t0;
+        var remainingMs = (1 - progress) / progress * elapsedMs;
 
-      // Get subvertex colors from the equirectangular map image
-      var subvertexColors = [];
-      for (var j = 0; j < subvertexCount; j++) {
-        var localPos = subvertices[j];
-        var pos = Icosahedron.getFacePos(
-          vertices, tile.faceIndex, localPos);
-        var p = polarAzEl(pos);
-        var color = eqrImageDrawing.getColor(p);
-        subvertexColors.push(color);
+        console.log(
+          'Dymaxion.drawTiles: Progress: ' + parseInt(progress * 100) + '% ' +
+          'Elapsed: ' + parseInt(elapsedMs / 1000) + ' ' +
+          'Remaining: ' + parseInt(remainingMs / 1000)
+        );
+
+        tP = t;
       }
 
-      // Draw the colored subfaces
-      var tileE1 = [
-        tile.vv[1][0] - tile.vv[0][0],
-        tile.vv[1][1] - tile.vv[0][1]
-      ];
-      var tileE2 = [
-        tile.vv[2][0] - tile.vv[0][0],
-        tile.vv[2][1] - tile.vv[0][1]
-      ];
-      var subfaces = subfaceData.subfacesByDivision[divisionCount - 1];
-      for (var j = 0; j < subfaces.length; j++) {
-        var i0 = subfaces[j][0];
-        var i1 = subfaces[j][1];
-        var i2 = subfaces[j][2];
-        var localV0 = subvertices[i0];
-        var localV1 = subvertices[i1];
-        var localV2 = subvertices[i2];
-        var rgb = [
-          parseInt((subvertexColors[i0][0] + subvertexColors[i1][0] + subvertexColors[i2][0]) / 3),
-          parseInt((subvertexColors[i0][1] + subvertexColors[i1][1] + subvertexColors[i2][1]) / 3),
-          parseInt((subvertexColors[i0][2] + subvertexColors[i1][2] + subvertexColors[i2][2]) / 3)
-        ];
-        var style = 'rgb(' + rgb.join(',') + ')';
+      iterationCount = 0;
+      for (var i = i0; i < tiles.length; i++) {
+        // console.log('Dymaxion.drawMap:', i, tiles.length);
 
-        var v0 = [
-          tile.vv[0][0] + tileE1[0] * localV0[0] + tileE2[0] * localV0[1],
-          tile.vv[0][1] + tileE1[1] * localV0[0] + tileE2[1] * localV0[1]
-        ];
-        var v1 = [
-          tile.vv[0][0] + tileE1[0] * localV1[0] + tileE2[0] * localV1[1],
-          tile.vv[0][1] + tileE1[1] * localV1[0] + tileE2[1] * localV1[1]
-        ];
-        var v2 = [
-          tile.vv[0][0] + tileE1[0] * localV2[0] + tileE2[0] * localV2[1],
-          tile.vv[0][1] + tileE1[1] * localV2[0] + tileE2[1] * localV2[1]
-        ];
+        var tile = tiles[i];
 
-        drawing.drawTriangle({
-          v0: v0,
-          v1: v1,
-          v2: v2,
-          lineWidth: 1,
-          fillStyle: style,
-          strokeStyle: style
+        // Draw the colored subfaces
+        var tileE1 = [
+          tile.vv[1][0] - tile.vv[0][0],
+          tile.vv[1][1] - tile.vv[0][1]
+        ];
+        var tileE2 = [
+          tile.vv[2][0] - tile.vv[0][0],
+          tile.vv[2][1] - tile.vv[0][1]
+        ];
+        
+        for (var j = j0; j < subfaces.length; j++) {
+          if (iterationCount >= iterationLimit) {
+            // Iteration limit has been reached. Schedule
+            // to next batch of iterations starting from
+            // the current i, j position and return.
+            // console.log(
+            //   'Dymaxion.drawMap: Iteration limit reached',
+            //   iterationLimit, i, j);
+            requestAnimationFrame(function() {
+              drawTiles(i, j, iterationLimit);
+            });
+            return;
+          }
+          var vv = [];
+          for (var k = 0; k < 3; k++) {
+            vv.push(subvertices[subfaces[j][k]]);
+          }
+
+          var colors = [];
+          for (var k = 0; k < 3; k++) {
+            var pos = Icosahedron.getFacePos(
+              vertices, tile.faceIndex, vv[k]);
+            var p = polarAzEl(pos);
+            var color = eqrImageDrawing.getColor(p);
+            colors.push(color);
+          }
+
+          var rgb = [
+            parseInt((colors[0][0] + colors[1][0] + colors[2][0]) / 3),
+            parseInt((colors[0][1] + colors[1][1] + colors[2][1]) / 3),
+            parseInt((colors[0][2] + colors[1][2] + colors[2][2]) / 3)
+          ];
+          var style = 'rgb(' + rgb.join(',') + ')';
+
+          var v0 = [
+            tile.vv[0][0] + tileE1[0] * vv[0][0] + tileE2[0] * vv[0][1],
+            tile.vv[0][1] + tileE1[1] * vv[0][0] + tileE2[1] * vv[0][1]
+          ];
+          var v1 = [
+            tile.vv[0][0] + tileE1[0] * vv[1][0] + tileE2[0] * vv[1][1],
+            tile.vv[0][1] + tileE1[1] * vv[1][0] + tileE2[1] * vv[1][1]
+          ];
+          var v2 = [
+            tile.vv[0][0] + tileE1[0] * vv[2][0] + tileE2[0] * vv[2][1],
+            tile.vv[0][1] + tileE1[1] * vv[2][0] + tileE2[1] * vv[2][1]
+          ];
+
+          drawing.drawTriangle({
+            v0: v0,
+            v1: v1,
+            v2: v2,
+            lineWidth: 1,
+            fillStyle: style,
+            strokeStyle: style
+          });
+
+          iterationCount += 1;
+        }
+        // At the end of the inner loop, reset j0 to zero
+        // so that the next inner loop starts at zero
+        j0 = 0;
+
+        // Cut out part of the tile if necessary
+        if (tile.vvCut) {
+          drawing.drawPolygon({
+            vv: tile.vvCut,
+            lineWidth: 2,
+            fillStyle: '#fff',
+            strokeStyle: '#fff'
+          });
+        }
+      }
+
+      // Draw outlines after all tiles have been drawn
+      for (var i = 0; i < tiles.length; i++) {
+        var tile = tiles[i];
+        drawing.drawPolygon({
+          vv: tile.vv2 || tile.vv,
+          lineWidth: 2,
+          strokeStyle: '#000'
         });
       }
 
-      drawing.drawTriangle({
-        v0: tile.vv[0],
-        v1: tile.vv[1],
-        v2: tile.vv[2],
-        lineWidth: 1,
-        strokeStyle: '#000'
-      });
-
+      console.log('Dymaxion.drawTiles: Finished');
     }
+
+    drawTiles(0, 0, drawIterationLimit);
+
   }
 
 };

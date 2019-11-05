@@ -3,12 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <title>Dymaxion Map</title>
+  <link href="https://fonts.googleapis.com/css?family=Lora:400,400i&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: sans-serif;
+      /*font-family: sans-serif;*/
+      font-family: 'Lora', serif;
+    }
+    #outer {
+      /*background-color: #eee;*/
+    }
+    #container {
+      /*background-color: #ccc;*/
+      width: 800px;
+      margin: 0px auto;
+      position: relative;
+    }
+    #title {
+      position: absolute;
+      top: 0px;
+      left: -170px;
+      width: 150px;
+      font-size: 24px;
+      padding-top: 10px;
+      text-align: right;
+      font-style: italic;
     }
     #eqrContainer {
       position: relative;
+      margin-bottom: 40px;
+    }
+    #dymContainer {
+      /*margin-bottom: 20px;*/
+      /*margin-left: 150px;*/
     }
     #eqrOverlayContainer {
       position: absolute;
@@ -16,28 +42,37 @@
       left: 0px;
     }
     #eqrImageContainer canvas {
-      border: solid 1px #000;
+      /*border: solid 1px #000;*/
+      width: 100%;
     }
     #eqrOverlayContainer canvas {
-      border: solid 1px #000;
+      /*border: solid 1px #000;*/
+      width: 100%;
     }
     #dymContainer canvas {
-      border: solid 1px #000;
+      /*border: solid 1px #000;*/
+      width: 100%;
     }
   </style>
-  <script
-    src="https://code.jquery.com/jquery-3.4.1.min.js"
-    integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
-    crossorigin="anonymous"></script>
+  <script src="jquery-3.4.1.min.js"></script>
 </head>
 
 <body>
-
-  <div id="eqrContainer">
-    <div id="eqrImageContainer"></div>
-    <div id="eqrOverlayContainer"></div>
+  <div id="outer">
+    <div id="container">
+      <div id="title">
+        Buckminster
+        Fuller's
+        Dymaxion
+        Map
+      </div>
+      <div id="dymContainer"></div>
+      <div id="eqrContainer">
+        <div id="eqrImageContainer"></div>
+        <div id="eqrOverlayContainer"></div>
+      </div>
+    </div>
   </div>
-  <div id="dymContainer"></div>
 
   <script src="utils.js"></script>
   <script src="drawing.js"></script>
@@ -49,33 +84,35 @@
 
     function main() {
 
-      var eqrImageSrc = 'eqr_world_1.png';
-      var dymDivisionCount = 6;
-      // var angles = [-2, 0.4, 0.4]  // [zAngle, yAngle, xAngle]
-      var angles = [-2, 0.5, 0.5]  // [zAngle, yAngle, xAngle]
+      var eqrImageSrc = 'eqr_world_2.jpg';
+      // var eqrImageSrc = 'ed.jpg';
+      // var eqrImageSrc = 'eqr_world_outline_2.png';
+      var dymDivisionCount = 8;
+      // var angles = [-2, 0.5, 0.5];  // [zAngle, yAngle, xAngle]
+      var angles = [-1.9562, 0.5418, 0.4618];  // [zAngle, yAngle, xAngle]
 
       var eqrImageDrawing = new Drawing({
         parentEl: $('#eqrImageContainer'),
-        width: 1024,
-        height: 512,
+        width: 1024 * 2,
+        height: 512 * 2,
         p0: [0, 0],
-        scale: 2 * 1024 / (2 * Math.PI)
+        scale: 2 * 1024 / (2 * Math.PI) * 2
       });
 
       var eqrOverlayDrawing = new Drawing({
         parentEl: $('#eqrOverlayContainer'),
-        width: 1024,
-        height: 512,
+        width: 1024 * 2,
+        height: 512 * 2,
         p0: [0, 0],
-        scale: 2 * 1024 / (2 * Math.PI)
+        scale: 2 * 1024 / (2 * Math.PI) * 2
       });
 
       var dymDrawing = new Drawing({
         parentEl: $('#dymContainer'),
-        width: 1024,
-        height: 512,
-        p0: [-0.18, -0.4],
-        scale: 350
+        width: 1024 * 3,
+        height: 512 * 3,
+        p0: [0.2, -0.43],
+        scale: 350 * 3
       });
 
       var subfaceData = Subfaces.createSubfaceData({
@@ -94,7 +131,9 @@
 
         Equirectangular.drawOverlayMap({
           drawing: eqrOverlayDrawing,
-          vertices: vertices
+          vertices: vertices,
+          lineWidth: 3,
+          strokeStyle: '#000'
         });
 
         Dymaxion.drawMap({

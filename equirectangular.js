@@ -43,9 +43,7 @@ var Equirectangular = {
         pPrev = p;
       }
     }
-    drawing.drawPath({
-      lineWidth: 2
-    });
+    drawing.drawPath(options);
   }
 
 };

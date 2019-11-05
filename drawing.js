@@ -48,6 +48,17 @@ Drawing.prototype = {
     this.drawPath(options);
   },
 
+  drawPolygon: function(options) {
+    // options: { v0, v1, v2, lineWidth, strokeStyle, fillStyle }
+    this.beginPath();
+    this.moveTo(options.vv[0]);
+    for (var i = 1; i < options.vv.length; i++) {
+      this.lineTo(options.vv[i]);
+    }
+    this.lineTo(options.vv[0]);
+    this.drawPath(options);
+  },
+
   drawCircle: function(options) {
     // p, radius, lineWidth, strokeStyle fillStyle
   },
@@ -101,9 +112,11 @@ Drawing.prototype = {
 
     this.canvasEl = $('<canvas/>')
       .attr('width', this.canvasWidth)
-      .attr('height', this.canvasHeight)
-      .css('width', this.width + 'px')
-      .css('height', this.height + 'px');
+      .attr('height', this.canvasHeight);
+      
+      // .css('width', this.width + 'px')
+      // .css('height', this.height + 'px');
+
     this.parentEl.append(this.canvasEl);
     this.ctx = this.canvasEl.get(0).getContext('2d');
     this.imageData = null;
